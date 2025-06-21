@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # Risk Scoring API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xayone-risk-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URL=mongodb://mongodb:27017
+      - REDIS_URL=redis://redis:6379
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - ALLOWED_API_KEYS=xayone-test-key-123,xayone-prod-key-456
+      - MODELS_PATH=/app/ml_models/trained_models
+    volumes:
+      - ./ml_models/trained_models:/app/ml_models/trained_models
+      - ./logs:/app/logs
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - xayone-network
+    restart: unless-stopped
+
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: xayone-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=xayone_risk_scoring
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - xayone-network
+    restart: unless-stopped
+    command: mongod --quiet --logpath /dev/null
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: xayone-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - xayone-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Model Training Container (one-time run)
+  model-trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xayone-model-trainer
+    environment:
+      - MODELS_PATH=/app/ml_models/trained_models
+    volumes:
+      - ./ml_models/trained_models:/app/ml_models/trained_models
+    networks:
+      - xayone-network
+    command: >
+      sh -c "
+        echo 'Training IP Model...' &&
+        python /app/training/train_ip_model.py &&
+        echo 'Training DateTime Model...' &&
+        python /app/training/train_datetime_model.py &&
+        echo 'Training UserAgent Model...' &&
+        python /app/training/train_useragent_model.py &&
+        echo 'Training Geolocation Model...' &&
+        python /app/training/train_geolocation_model.py &&
+        echo 'All models trained successfully!'
+      "
+    profiles:
+      - train
+
+networks:
+  xayone-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+  redis_data:

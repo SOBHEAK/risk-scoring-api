@@ -1,0 +1,44 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic[email]
+pydantic-settings
+
+# ML Libraries
+scikit-learn
+tensorflow
+numpy
+joblib
+
+# Database
+motor
+redis
+redis[hiredis]
+pymongo
+
+# HTTP & Async
+httpx
+aiohttp
+asyncio
+
+# Utils
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+email-validator
+user-agents
+ipaddress
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+
+# Monitoring & Logging
+python-json-logger
+
+# Development
+black
+flake8
+isort
