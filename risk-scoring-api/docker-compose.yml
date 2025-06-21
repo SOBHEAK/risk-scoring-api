@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: xayone-risk-api
+    ports:
+      - "8000:8000"
+    environment:
+      - API_KEYS=${API_KEYS:-xayone_test_key_123,xayone_prod_key_456}
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - MONGODB_URL=mongodb://mongodb:27017
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - risk-network
+
+  mongodb:
+    image: mongo:7.0
+    container_name: xayone-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=xayone_risk_scoring
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+    networks:
+      - risk-network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: xayone-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - risk-network
+
+  # Optional: Model training container
+  train-models:
+    build: .
+    container_name: xayone-train-models
+    command: python -m training.train_all_models
+    volumes:
+      - ./models:/app/models
+    networks:
+      - risk-network
+    profiles:
+      - training
+
+  # Optional: Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: xayone-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+    networks:
+      - risk-network
+    profiles:
+      - monitoring
+
+volumes:
+  mongodb_data:
+  redis_data:
+  prometheus_data:
+
+networks:
+  risk-network:
+    driver: bridge
