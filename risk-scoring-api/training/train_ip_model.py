@@ -42,6 +42,7 @@ def generate_ip_training_data() -> Dict[str, List]:
             ip = template.format(
                 random.randint(1, 255),
                 random.randint(1, 255),
+                random.randint(1, 255),
                 random.randint(1, 254)
             )
         
@@ -99,10 +100,17 @@ def generate_ip_training_data() -> Dict[str, List]:
             # Tor exit node
             template = random.choice(tor_ranges)
         
-        ip = template.format(
-            random.randint(1, 255),
-            random.randint(1, 254)
-        )
+        if template.count('{}') == 2:
+            ip = template.format(
+                random.randint(1, 255),
+                random.randint(1, 254)
+            )
+        else:  # 3 placeholders
+            ip = template.format(
+                random.randint(1, 255),
+                random.randint(1, 255),
+                random.randint(1, 254)
+            )
         
         anomalous_ips.append({
             'ip': ip,

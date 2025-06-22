@@ -1,5 +1,6 @@
 # training/train_datetime_model.py
 import random
+import numpy as np
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 from ml_models.datetime_model import DateTimeRiskModel
@@ -51,7 +52,7 @@ def generate_datetime_training_data() -> Dict[str, List]:
             for day in range(90):
                 if current_time.weekday() in profile['login_days']:
                     # Generate logins for this day
-                    num_logins = random.poisson(profile['frequency'])
+                    num_logins = np.random.poisson(profile['frequency'])
                     
                     for _ in range(num_logins):
                         # Pick a random hour from profile
