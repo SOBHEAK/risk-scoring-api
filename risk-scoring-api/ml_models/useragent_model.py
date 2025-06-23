@@ -128,7 +128,7 @@ class UserAgentRiskModel(BaseRiskModel):
         self.model = self._build_autoencoder(input_dim)
         self.model.compile(
             optimizer='adam',
-            loss='mse',
+            loss='mse',  # This needs to be a string, not a function reference
             metrics=['mae']
         )
         
@@ -179,7 +179,8 @@ class UserAgentRiskModel(BaseRiskModel):
     def predict(self, current_session: Dict, login_history: List[Dict]) -> int:
         """Override predict to use autoencoder reconstruction error."""
         if not self.is_loaded:
-            raise RuntimeError(f"Model {self.model_name} not loaded")
+            # Use rule-based fallback
+            return self._fallback_predict(current_session, login_history)
         
         # Extract features
         features = self.extract_features(current_session, login_history)
@@ -194,6 +195,35 @@ class UserAgentRiskModel(BaseRiskModel):
         final_risk = base_risk + risk_adjustments
         
         return max(0, min(100, final_risk))
+    
+    def _fallback_predict(self, current_session: Dict, login_history: List[Dict]) -> int:
+        """Fallback prediction when model not loaded."""
+        user_agent = current_session['userAgent']
+        features = extract_user_agent_features(user_agent)
+        
+        risk = 0
+        
+        # Bot detection
+        if features['is_bot']:
+            risk += 80
+        
+        # Suspicious UA
+        if features['is_suspicious']:
+            risk += 40
+        
+        # Very short or malformed
+        if features['length'] < 20:
+            risk += 30
+        
+        # No version info
+        if features['browser_version'] == 'unknown':
+            risk += 20
+        
+        # High entropy (random)
+        if features['entropy'] > 4.5:
+            risk += 20
+        
+        return max(0, min(100, risk))
     
     def _apply_risk_rules(self, current_session: Dict) -> int:
         """Apply additional risk rules for user agents."""
@@ -256,14 +286,34 @@ class UserAgentRiskModel(BaseRiskModel):
             return False
         
         try:
-            # Load Keras model
+            # Load Keras model with custom objects if needed
             keras_path = load_path.replace('.pkl', '_keras.h5')
             if os.path.exists(keras_path):
-                self.model = tf.keras.models.load_model(keras_path)
+                # Try loading with compile=False first to avoid metric issues
+                try:
+                    self.model = tf.keras.models.load_model(keras_path, compile=False)
+                    # Recompile with proper loss
+                    self.model.compile(
+                        optimizer='adam',
+                        loss='mse',
+                        metrics=['mae']
+                    )
+                except Exception as e:
+                    print(f"Failed to load with compile=False, trying with legacy loader: {e}")
+                    # Fallback to loading with custom objects
+                    self.model = tf.keras.models.load_model(
+                        keras_path,
+                        custom_objects={'mse': tf.keras.losses.MeanSquaredError()}
+                    )
                 
-                # Recreate encoder
-                encoded_layer = self.model.get_layer(index=3).output
-                self.encoder = models.Model(self.model.input, encoded_layer)
+                # Recreate encoder from the loaded model
+                # Get the encoder layers (first 4 layers including input)
+                encoder_input = self.model.input
+                encoder_output = self.model.layers[3].output  # 4th layer is the encoded representation
+                self.encoder = models.Model(encoder_input, encoder_output)
+            else:
+                print(f"Keras model file not found: {keras_path}")
+                return False
             
             # Load other components
             components = joblib.load(load_path)
@@ -277,4 +327,6 @@ class UserAgentRiskModel(BaseRiskModel):
             
         except Exception as e:
             print(f"Error loading UserAgent model: {e}")
+            # If loading fails, we can still use rule-based prediction
+            self.is_loaded = False
             return False

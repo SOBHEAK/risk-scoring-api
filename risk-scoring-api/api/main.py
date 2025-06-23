@@ -327,6 +327,24 @@ async def general_exception_handler(request: Request, exc: Exception):
             "timestamp": int(time.time() * 1000)
         }
     )
+    
+    
+@app.get("/debug/models")
+async def debug_models():
+    """Debug endpoint to check model loading."""
+    import os
+    
+    debug_info = {
+        "current_dir": os.getcwd(),
+        "app_file": __file__,
+        "models_dir_exists": os.path.exists("./models"),
+        "abs_models_dir": os.path.abspath("./models"),
+        "models_files": os.listdir("./models") if os.path.exists("./models") else None,
+        "model_states": {name: model.is_loaded for name, model in models.items()},
+        "model_paths": {name: model.model_path for name, model in models.items()}
+    }
+    
+    return debug_info
 
 
 if __name__ == "__main__":

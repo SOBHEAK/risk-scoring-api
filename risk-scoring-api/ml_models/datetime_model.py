@@ -213,7 +213,8 @@ class DateTimeRiskModel(BaseRiskModel):
         super().save_model(path)
         
         # Also save the scaler
-        scaler_path = (path or self.model_path).replace('.pkl', '_scaler.pkl')
+        model_path = path or self.model_path
+        scaler_path = model_path.replace('.pkl', '_scaler.pkl')
         joblib.dump(self.scaler, scaler_path)
     
     def load_model(self, path: Optional[str] = None) -> bool:
@@ -226,7 +227,8 @@ class DateTimeRiskModel(BaseRiskModel):
             return False
         
         # Also load the scaler
-        scaler_path = (path or self.model_path).replace('.pkl', '_scaler.pkl')
+        model_path = path or self.model_path
+        scaler_path = model_path.replace('.pkl', '_scaler.pkl')
         if os.path.exists(scaler_path):
             self.scaler = joblib.load(scaler_path)
         else:
